@@ -19,15 +19,14 @@ fun_arg = 2        # Type of function evaluation
 # Initialize the grid size and parameters for Discrete search and Continuous search.
 Nm = 8             # Initial mesh grid size
 K = Kini = 3       # Continous search function constant
-L0 = 1             # Discrete 1 search functio n constant
-L = L0
+
 # Initialize the index for iteration
 nff = 1            # Number of experiments
 num_iter = 0       # Represents how many iteration the algorithm goes
 iter_max = 50      # Maximum number of iterations based on each mesh
 MeshSize = 8       # Represents the number of mesh refinement that algorithm will perform
 sc = 'constantK'   # represent the type of continuous search function we used.
-alg_name = 'DDOGS/' # represents the name of optm algorithm
+alg_name = 'DDOGS/'  # represents the name of optm algorithm
 
 # plot class
 # plot class
@@ -76,6 +75,10 @@ for ff in range(nff):
             print('Total iter = ', num_iter, 'iteration k = ', k, ' kk = ', kk, 'Nm = ', Nm)
             
             [inter_par, yp] = interpolation.interpolateparameterization(xE, yE, inter_par)
+            if (num_iter == 1 or num_iter == 12 or num_iter == 15) and n == 1:
+                print('z')
+                Dogsplot.sc_interp_1D_separate_delaunay_constantk(inter_par, xE, yE, K, fun_arg)
+
             K0 = np.ptp(yE, axis=0)
             # Calculate the discrete function.
             ypmin  = np.amin(yp)
@@ -94,7 +97,7 @@ for ff in range(nff):
                     t = np.amin(yu)
                     ind = np.argmin(yu)
                     xc_eval = np.copy(xU[:, ind].reshape(-1, 1))
-                    yc = -np.inf
+                    yc = -np  .inf
                     xU = scipy.delete(xU, ind, 1)
                 else:
                     while 1:
@@ -138,12 +141,9 @@ for ff in range(nff):
                                 # paper criteria (3)
                                 xc_eval = xc_grid
 
-                # Minimize S_d ^ k(x)
-
                 if L_refine == 1:
                     K *= 2
                     Nm *= 2
-                    L += L0
                     L_refine = 0
                     print('===============  MESH Refinement  ===================')
                     print('===============  MESH Refinement  ===================')
@@ -165,33 +165,3 @@ for ff in range(nff):
     Dogsplot.dogs_summary_plot(xE, yE, y0, ff, xmin, fname, alg_name)
 
 
-##########################  Show the result  ############################
-#data = np.hstack((xE.T, np.array([yE]).T))
-#if n == 3:
-#    data = np.vstack((np.array(['xE1', 'xE2', 'xE3', 'yE']), data))
-#elif n == 2:
-#    data = np.vstack((np.array(['xE1', 'xE2', 'yE']), data))
-#else:
-#    data = np.vstack((np.array(['xE', 'yE']), data))
-#
-#print(data)
-#print(' Nm = ', Nm)
-#print('minimum point = ', xE[:,np.argmin(yE)])
-#    
-################################################################################################################
-
-# 1.	Intializaiton of the vertices
-# 2.	Construct the Delaunay triangulations of S
-# 3.	Constrict an appropriate regression model of S. calculate the search function as sc(x) = p(x)-Ke(x).
-#  evaluate the discrete search funciton as:
-#           sd = min ( p(x) , yi + (yi-p(x))) - L * sigma(h,T) - sigma(Lx)
-# 4.	If sc <= sd then evaluate the minimizer of the continuous search function.
-# 5.       else:
-#                calculate the loss function as:
-#                    minimize_{N,T}     Loss = [ N log(N) ]^n * T * N
-#                    such that          L * sigma(h,T)   <   eps
-#                       where eps = min { (sd_i - sc),  (sd_i - sd{i-1}) }   [with minimum N value]
-#           Improve the existing point accuracy with the N_new and T_new.
-
-# data = {'xE': xE, 'xU': xU, 'yE': yE, 'sigma': SigmaT, 'T': T}
-# io.savemat("schwefel_2D", data)

@@ -95,7 +95,7 @@ for ff in range(nff):
 
             if (num_iter == 1 or num_iter == 9) and n == 1:
                 print('z')
-            #     Dogsplot.sc_interp_1D_separate_delaunay(inter_par, xE, yE, fun_arg)
+                Dogsplot.sc_interp_1D_separate_delaunay_adaptivek(inter_par, xE, yE, fun_arg)
 
             ypmin = np.amin(yp)
             ind_min = np.argmin(yp)

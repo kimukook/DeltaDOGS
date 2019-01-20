@@ -14,8 +14,6 @@ from        scipy               import io
 from        functools           import partial
 from        dogs                import Utils
 from        dogs                import interpolation
-from        dogs                import DR_adaptiveK
-from        dogs                import discrete_min
 '''
 Dogsplot.py is implemented to generate results for AlphaDOGS and DeltaDOGS containing the following functions:
     dogs_summary                 :   generate summary plots, 
@@ -1017,12 +1015,10 @@ def delaunay_uncertainty_1Ddomain(xi, yE):
     return e
 
 
-def sc_interp_1D_separate_delaunay(inter_par, xi, yE, fun_arg):
+def sc_interp_1D_separate_delaunay_adaptivek(inter_par, xi, yE, fun_arg):
     n = inter_par.xi.shape[0]
-    K0 = np.ptp(yE, axis=0)
     fun, lb, ub, y0, xmin, fname = Utils.test_fun(fun_arg, n)
     func_eval = partial(Utils.fun_eval, fun, lb, ub)
-    # y0 -= 0.015
 
     plt.figure()
     sx = sorted(range(xi.shape[1]), key=lambda x: xi[:, x])
@@ -1030,52 +1026,50 @@ def sc_interp_1D_separate_delaunay(inter_par, xi, yE, fun_arg):
     tri[:, 0] = sx[:xi.shape[1] - 1]
     tri[:, 1] = sx[1:]
     tri = tri.astype(np.int32)
-    K0 = np.ptp(yE, axis=0)
-    sc_min = 1e+10
+
+    num_plot_points = 2000
+    xe_plot = np.zeros((tri.shape[0], num_plot_points))
+    e_plot  = np.zeros((tri.shape[0], num_plot_points))
+    sc_plot = np.zeros((tri.shape[0], num_plot_points))
 
     for ii in range(len(tri)):
         temp_x = np.copy(xi[:, tri[ii, :]])
-        x = np.linspace(temp_x[0, 0] + 0.0001, temp_x[0, 1] - 0.0001, 250)
-        temp_Sc = np.zeros(len(x))
-        temp_invSc = np.zeros(len(x))
-        temp_e = np.zeros(len(x))
+        x_ = np.linspace(temp_x[0, 0], temp_x[0, 1], num_plot_points)
         R2, xc = Utils.circhyp(xi[:, tri[ii, :]], n)
-        for jj in range(len(x)):
-            p = interpolation.interpolate_val(x[jj], inter_par) - y0
-            temp_e[jj] = (R2 - np.linalg.norm(x[jj] - xc) ** 2)
-            temp_Sc[jj] = p / temp_e[jj]
-            temp_invSc[jj] = - temp_e[jj] / p
-        ### calculate the minimum
-        if temp_Sc.min() < sc_min:
-            sc_min = temp_Sc.min()
-            xmin = np.copy(x[np.argmin(temp_Sc)])
-        ### for plotting uncertainty function
-        if ii == 0:
-            e = np.copy(temp_e)
-            xe_plot = np.copy(x)
-        else:
-            e = np.vstack((e, temp_e))
-            xe_plot = np.vstack((xe_plot, x))
-        ### for plotting uncertainty function
-        # delete elements when sc(x) exceeds the range
-        dlt = []
-        for i in range(temp_Sc.shape[0]):
-            if temp_Sc[i] > 200:
-                dlt.append(i)
-        x = scipy.delete(x, dlt, 0)
-        temp_Sc = scipy.delete(temp_Sc, dlt, 0)
-        plt.plot(x, temp_Sc, 'g--', label=r'Continuous search function $s_c(x)$')
+        for jj in range(len(x_)):
+            p = interpolation.interpolate_val(x_[jj], inter_par) - y0
+            e_plot[ii, jj] = (R2 - np.linalg.norm(x_[jj] - xc) ** 2)
+            sc_plot[ii, jj] = p / e_plot[ii, jj]
+    sc_min = np.min(sc_plot, axis=1)
+    index_r = np.argmin(sc_min)
+    index_c = np.argmin(sc_plot[index_r, :])
+    sc_min_x = xe_plot[index_r, index_c]
+    sc_min = min(np.min(sc_plot, axis=1))
 
-    plt.scatter(xmin, sc_min, c='r')
+    # Plotting uncertainty function, delete elements when sc(x) exceeds the range
+
+    for ii in range(len(tri)):
+        dlt = []
+        temp_x = np.copy(xi[:, tri[ii, :]])
+        x_ = np.linspace(temp_x[0, 0], temp_x[0, 1], num_plot_points)
+
+        for i in range(sc_plot.shape[1]):
+            if sc_plot[ii, i] > 200:
+                dlt.append(i)
+        x_ = scipy.delete(x_, dlt, 0)
+        temp_Sc = scipy.delete(sc_plot[ii, :], dlt, 0)
+        plt.plot(x_, temp_Sc, 'g--', label=r'Continuous search function $s_c(x)$')
+
+    plt.scatter(sc_min_x, sc_min, c='r')
     plt.tick_params('y', colors='g')
     plt.savefig('Iter' + str(yE.shape[0]) + 'sc.eps', format='eps', dpi=1000)
     plt.close()
     ############ uncertainty ############
     plt.figure()
-    for i in range(e.shape[0]):
-        plt.plot(xe_plot[i, :], e[i, :], 'g')
+    for i in range(len(tri)):
+        plt.plot(xe_plot[i, :], e_plot[i, :], 'g')
     plt.tick_params('y', colors='b')
-    plt.ylim(0, 0.1)
+    plt.ylim(0, 0.5)
     plt.savefig('Iter' + str(yE.shape[0]) + 'uncertainty.eps', format='eps', dpi=1000)
 
     ############ interpolation ############
@@ -1095,7 +1089,92 @@ def sc_interp_1D_separate_delaunay(inter_par, xi, yE, fun_arg):
     return
 
 
+def sc_interp_1D_separate_delaunay_constantk(inter_par, xi, yE, K, fun_arg):
+
+    n = inter_par.xi.shape[0]
+    fun, lb, ub, y0, xmin, fname = Utils.test_fun(fun_arg, n)
+    func_eval = partial(Utils.fun_eval, fun, lb, ub)
+
+    sx = sorted(range(xi.shape[1]), key=lambda x: xi[:, x])
+    tri = np.zeros((xi.shape[1] - 1, 2))
+    tri[:, 0] = sx[:xi.shape[1] - 1]
+    tri[:, 1] = sx[1:]
+    tri = tri.astype(np.int32)
+
+    num_plot_points = 2000
+    xe_plot = np.zeros((tri.shape[0], num_plot_points))
+    e_plot  = np.zeros((tri.shape[0], num_plot_points))
+    sc_plot = np.zeros((tri.shape[0], num_plot_points))
+
+    for ii in range(tri.shape[0]):
+        temp_x = np.copy(xi[:, tri[ii, :]])
+
+        x_ = np.linspace(temp_x[0, 0], temp_x[0, 1], num_plot_points)
+        R2, xc = Utils.circhyp(xi[:, tri[ii, :]], n)
+        for jj in range(len(x_)):
+            p = interpolation.interpolate_val(x_[jj], inter_par)
+
+            e_plot[ii, jj] = (R2 - np.linalg.norm(x_[jj] - xc) ** 2)
+            sc_plot[ii, jj] = p - K * e_plot[ii, jj]
+
+        xe_plot[ii, :] = x_
+
+    sc_min = np.min(sc_plot, axis=1)
+    index_r = np.argmin(sc_min)
+    index_c = np.argmin(sc_plot[index_r, :])
+    sc_min_x = xe_plot[index_r, index_c]
+    sc_min = min(np.min(sc_plot, axis=1))
+
+    # plot the uncertainty
+    fig = plt.figure()
+    if xi.shape[1] < 5:
+        amp = 1
+    else:
+        amp = 10
+    for i in range(len(tri)):
+        plt.plot(xe_plot[i, :], amp * e_plot[i, :], 'g')
+    plt.tick_params('y', colors='b')
+    plt.ylim(0, 0.5)
+    plt.gca().axes.get_yaxis().set_visible(False)
+    plt.savefig('Iter' + str(yE.shape[0]) + 'uncertainty.png', format='png', dpi=1000)
+    plt.close(fig)
+
+    ############ interpolation ############
+    fig = plt.figure()
+    xRplot = np.linspace(0, 1, 1000)
+    yrall = np.zeros(xRplot.shape)
+    y_true = np.zeros(xRplot.shape)
+
+    for i in range(len(xRplot)):
+        yrall[i] = interpolation.interpolate_val(xRplot[i], inter_par)
+        y_true[i] = func_eval(xRplot[i])
+    plt.plot(xRplot, yrall, 'b--', label='Interpolation function')
+    plt.plot(xRplot, y_true, 'k', label='True function')
+    # plot the s(x)
+    for i in range(len(tri)):
+        plt.plot(xe_plot[i, :], sc_plot[i, :], c='r')
+    # plot the evaluated data points
+    plt.scatter(xi[0], yE, c='k')
+    plt.gca().axes.get_yaxis().set_visible(False)
+    # plot the minimizer of s(x)
+    plt.scatter(sc_min_x, sc_min, c='r')
+    plt.tick_params('y', colors='g')
+    plt.ylim(-2, 2)
+    plt.savefig('Iter' + str(yE.shape[0]) + 'sc.png', format='png', dpi=1000)
+    return
+
+
 def sd_p_f_e_1D_seperate(inter_par, yE, fun_arg, Dtype, alg_name, ff):
+    '''
+    Generate results for 1D DeltaDOGS.
+    :param inter_par:
+    :param yE:
+    :param fun_arg:
+    :param Dtype:
+    :param alg_name:
+    :param ff:
+    :return:
+    '''
     n = inter_par.xi.shape[0]
     xE = np.copy(inter_par.xi)
     fun, lb, ub, y0, xmin, fname = Utils.test_fun(fun_arg, n)
