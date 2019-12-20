@@ -33,4 +33,4 @@ if __name__ == '__main__':
     options.set_option('Optimization summary', True)
 
     opt = DeltaDOGS(bnds, schwefel, options)
-    opt.deltadogs_optimizer()
+    xmin = opt.deltadogs_optimizer()

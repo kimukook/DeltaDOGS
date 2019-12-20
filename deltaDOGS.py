@@ -319,10 +319,11 @@ class DeltaDOGS:
                     break
                 else:
                     pass
-
+        xmin = self.xE[:, np.argmin(self.yE)]
         if self.optm_summary:
             self.plot.summary_plot(self)
         self.plot.result_saver(self)
+        return xmin
 
     def constant_surrogate_solver(self):
         self.iter += 1
