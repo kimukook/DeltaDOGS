@@ -3,7 +3,7 @@
 """
 Created on Tue Oct 31 15:25:12 2017
 
-@author: mousse
+@author: Muhan Zhao
 """
 import numpy as np
 from scipy.spatial import Delaunay
@@ -33,7 +33,7 @@ from dogs import interpolation
      
 '''
 
-#################################### Constant K method ####################################
+
 def tringulation_search_bound_constantK(inter_par, xi, K, ind_min):
     '''
     This function is the core of constant-K continuous search function.
@@ -68,39 +68,37 @@ def tringulation_search_bound_constantK(inter_par, xi, K, ind_min):
         R2, xc = Utils.circhyp(xi[:, tri[ii, :]], n)
         # x is the center of the current simplex
         x = np.dot(xi[:, tri[ii, :]], np.ones([n + 1, 1]) / (n + 1))
-        Sc[ii] = interpolation.interpolate_val(x, inter_par) - K * (R2 - np.linalg.norm(x - xc) ** 2)
+        Sc[ii] = inter_par.inter_val(x) - K * (R2 - np.linalg.norm(x - xc) ** 2)
         if np.sum(ind_min == tri[ii, :]):
             Scl[ii] = np.copy(Sc[ii])
         else:
             Scl[ii] = inf
-    # Global one
-    t = np.min(Sc)
-    ind = np.argmin(Sc)
-    R2, xc = Utils.circhyp(xi[:, tri[ind, :]], n)
-    x = np.dot(xi[:, tri[ind, :]], np.ones([n + 1, 1]) / (n + 1))
-    xm, ym = Constant_K_Search(x, inter_par, xc, R2, K)
-    # Local one
-    t = np.min(Scl)
-    ind = np.argmin(Scl)
-    R2, xc = Utils.circhyp(xi[:, tri[ind, :]], n)
-    # Notice!! ind_min may have a problem as an index
-    x = np.copy(xi[:, ind_min].reshape(-1, 1))
-    xml, yml = Constant_K_Search(x, inter_par, xc, R2, K)
-    if yml < ym:
-        xm = np.copy(xml)
-        ym = np.copy(yml)
-    xm = xm.reshape(-1, 1)
-    ym = ym[0, 0]
-    return xm, ym
+    # Global one and Local one
+    index = np.array([np.argmin(Sc), np.argmin(Scl)])
+    xm = np.zeros((n, 2))
+    ym = np.zeros(2)
+    for i in range(2):
+        temp_x, ym[i] = Constant_K_Search(xi[:, tri[index[i], :]], inter_par, K)
+        xm[:, i] = np.copy(temp_x)
+    ymin = np.min(ym)
+    xmin = xm[:, np.argmin(ym)].reshape(-1, 1)
+
+    if np.argmin(ym) == 0:
+        result = 'global'
+    else:
+        result = 'local'
+    return xmin, ymin, result
 
 
-def Constant_K_Search(x0, inter_par, xc, R2, K, lb=[], ub=[]):
-    n = x0.shape[0]
+def Constant_K_Search(simplex, inter_par, K, lb=[], ub=[]):
+    n = simplex.shape[0]
+    R2, xc = Utils.circhyp(simplex, n)
+    x = np.dot(simplex, np.ones([n + 1, 1]) / (n + 1))
     costfun = lambda x: Continuous_search_cost(x, inter_par, xc, R2, K)[0]
     costjac = lambda x: Continuous_search_cost(x, inter_par, xc, R2, K)[1]
     opt = {'disp': False}
     bnds = tuple([(0, 1) for i in range(int(n))])
-    res = optimize.minimize(costfun, x0, jac=costjac, method='TNC', bounds=bnds, options=opt)
+    res = optimize.minimize(costfun, x, jac=costjac, method='TNC', bounds=bnds, options=opt)
     x = res.x
     y = res.fun
     return x, y
@@ -109,8 +107,8 @@ def Constant_K_Search(x0, inter_par, xc, R2, K, lb=[], ub=[]):
 # Value of constant K search
 def Continuous_search_cost(x, inter_par, xc, R2, K):
     x = x.reshape(-1, 1)
-    M = interpolation.interpolate_val(x, inter_par) - K * (R2 - np.linalg.norm(x - xc) ** 2)
-    DM = interpolation.interpolate_grad(x, inter_par) + 2 * K * (x - xc)
+    M = inter_par.inter_val(x) - K * (R2 - np.linalg.norm(x - xc) ** 2)
+    DM = inter_par.inter_val(x) + 2 * K * (x - xc)
     # if optm method is chosen as TNC, use DM.T[0]
     return M, DM.T[0]
 
