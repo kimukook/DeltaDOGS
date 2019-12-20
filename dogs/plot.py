@@ -20,7 +20,6 @@ class PlotClass:
         else:
             pass
 
-
     def initial_calc1D(self, ddogs):
         """
         Calculate the initial objective function in 1D parameter space.
@@ -35,7 +34,6 @@ class PlotClass:
         if not ddogs.func_range_prior:
             ddogs.plot_ylow = np.min(ddogs.func_prior_yE) - 1
             ddogs.plot_yupp = np.max(ddogs.func_prior_yE) + 1
-
 
     def initial_calc2D(self, ddogs):
         """
@@ -76,7 +74,6 @@ class PlotClass:
         self.fig_saver('initial1D', ddogs)
         plt.close(fig)
 
-
     def plot1D(self, ddogs):
         """
         1D iteration information ploter:
@@ -97,7 +94,7 @@ class PlotClass:
             plot_yE = np.copy(ddogs.yE)
 
         # scatter plot the evaluated points
-        plt.scatter(plot_xE, plot_yE, marker='s', c='b')
+        plt.scatter(plot_xE, plot_yE, marker='s', c='b', label=r'$S_k$')
 
         # plot the objective function
         plt.plot(ddogs.func_prior_xE, ddogs.func_prior_yE, 'k')
@@ -267,9 +264,6 @@ class PlotClass:
         print(' %40s ' % 'Current FuncValue', ' %30s ' % ddogs.yE[-1])
         print(' %40s ' % 'Current Position RelativeError', ' %30s ' % cur_pos_reltv_err)
         print(' %40s ' % 'Current Value RelativeError', ' %30s ' % cur_val_reltv_err)
-        if not ddogs.iter_type == 'refine':
-            print(' %40s ' % 'CurrentEval point', ' %30s ' % ddogs.xE[:, -1])
-            print(' %40s ' % 'FuncValue', ' %30s ' % ddogs.yE[-1])
         print("\n")
 
     def summary_plot(self, ddogs):

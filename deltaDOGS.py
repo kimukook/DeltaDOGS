@@ -20,6 +20,7 @@ from    dogs                import Utils
 from    dogs                import interpolation
 from    dogs                import cartesian_grid
 from    dogs                import constantK
+from    dogs                import adaptiveK
 from    dogs                import plot
 inf = 1e+20
 
@@ -252,6 +253,7 @@ class DeltaDOGS:
                 print('Function evaluation is expensive, turn figure saving option to negative.')
                 self.save_fig = False
 
+        self.func_range_prior = options.get_option('Function range known')
         if options.get_option('Function evaluation cheap') and self.save_fig:
             if self.n == 1:
                 self.plot.initial_calc1D(self)
@@ -272,7 +274,6 @@ class DeltaDOGS:
             else:
                 pass
 
-        self.func_range_prior = options.get_option('Function range known')
         if self.save_fig:
             if self.func_range_prior:
                 self.plot_ylow = options.get_option('Function range')[0]
@@ -311,7 +312,7 @@ class DeltaDOGS:
                 if self.surrogate_type == 'c':
                     self.constant_surrogate_solver()
                 else:
-                    pass
+                    self.adaptive_surrogate_solver()
 
                 if self.iter_type == 'refine':
                     self.iter_type = None
@@ -325,7 +326,7 @@ class DeltaDOGS:
 
     def constant_surrogate_solver(self):
         self.iter += 1
-
+        self.K0 = np.ptp(self.yE, axis=0)
         self.inter_par = interpolation.InterParams(self.xE)
         self.yp = self.inter_par.interpolateparameterization(self.yE)
 
@@ -336,19 +337,22 @@ class DeltaDOGS:
             for ii in range(self.xU.shape[1]):
                 yu[ii] = self.inter_par.inter_val(self.xU[:, ii]) - \
                          self.K * self.K0 * Utils.mindis(self.xU[:, ii], self.xE)[0]
+        else:
+            yu = inf
 
         if self.xU.shape[1] > 0 and np.min(yu) < np.min(self.yE):
             ind = np.argmin(yu)
             self.xc = np.copy(self.xU[:, ind].reshape(-1, 1))
             self.yc = -inf
             self.xU = scipy.delete(self.xU, ind, 1)
+            self.iter_type = 'scmin'
         else:
             while 1:
                 xs, ind_min = cartesian_grid.add_sup(self.xE, self.xU, ind_min)
                 xc, yc, result = constantK.tringulation_search_bound_constantK(self.inter_par, xs, self.K * self.K0,
                                                                                ind_min)
                 xc_grid = np.round(xc * self.ms) / self.ms
-                xE, xU, success, self.newadd = cartesian_grid.points_neighbers_find(self.xc, self.xE, self.xU,
+                xE, xU, success, self.newadd = cartesian_grid.points_neighbers_find(xc_grid, self.xE, self.xU,
                                                                                     self.Bin, self.Ain)
 
                 if success == 0:  # inactivate step
@@ -379,6 +383,71 @@ class DeltaDOGS:
 
         if self.iter_type == 'refine':
             self.K *= 2
+            self.ms *= 2
+        else:
+            self.xE = np.hstack((self.xE, self.xc))
+            self.yE = np.hstack((self.yE, self.func_eval(self.xc)))
+
+        if self.save_fig:
+            self.iter_plot(self)
+        if self.iter_summary:
+            self.plot.summary_display(self)
+
+    def adaptive_surrogate_solver(self):
+        self.iter += 1
+        self.K0 = np.ptp(self.yE, axis=0)
+        self.inter_par = interpolation.InterParams(self.xE)
+        self.yp = self.inter_par.interpolateparameterization(self.yE)
+
+        ind_min = np.argmin(self.yp)
+
+        yu = np.zeros(self.xU.shape[1])
+        if self.xU.shape[1] > 0:
+            for ii in range(self.xU.shape[1]):
+                yu[ii] = (self.inter_par.inter_val(self.xU[:, ii]) - self.y0) / \
+                        Utils.mindis(self.xU[:, ii], self.xE)[0]
+
+        if self.xU.shape[1] > 0 and np.min(yu) < np.min(self.yE):
+            ind = np.argmin(yu)
+            self.xc = np.copy(self.xU[:, ind].reshape(-1, 1))
+            self.yc = -inf
+            self.xU = scipy.delete(self.xU, ind, 1)
+        else:
+            while 1:
+                xs, ind_min = cartesian_grid.add_sup(self.xE, self.xU, ind_min)
+                xc, yc, result = adaptiveK.tringulation_search_bound(self.inter_par, xs, self.y0, self.K0, ind_min)
+                xc_grid = np.round(xc * self.ms) / self.ms
+                xE, xU, success, self.newadd = cartesian_grid.points_neighbers_find(xc_grid, self.xE, self.xU,
+                                                                                    self.Bin, self.Ain)
+
+                if success == 0:  # inactivate step
+                    self.xU = np.hstack((self.xU, xc_grid))
+                    self.yu = np.hstack((yu, (self.inter_par.inter_val(xc_grid)[0] - self.y0)
+                                         / Utils.mindis(xc_grid, self.xE)[0]))
+
+                else:  # activate step
+                    sd_xc = (self.inter_par.inter_val(xc_grid) - self.y0) / \
+                             Utils.mindis(xc_grid, self.xE)[0]
+                    if self.xU.shape[1] == 0 or sd_xc < np.min(yu):
+                        # xc_grid has lower sd(x) value
+                        if Utils.mindis(xc_grid, self.xE)[0] < 1e-6:
+                            # point already exist
+                            self.iter_type = 'refine'
+                            break
+                        else:
+                            self.iter_type = 'scmin'
+                            self.xc = np.copy(xc_grid)
+                            break
+
+                    else:
+                        # the discrete search function values of the minimizer of sd(x) is lower
+                        self.iter_type = 'sdmin'
+                        index = np.argmin(yu)
+                        self.xc = np.copy(self.xU[:, index].reshape(-1, 1))
+                        self.xU = scipy.delete(self.xU, index, 1)
+                        break
+
+        if self.iter_type == 'refine':
             self.ms *= 2
         else:
             self.xE = np.hstack((self.xE, self.xc))

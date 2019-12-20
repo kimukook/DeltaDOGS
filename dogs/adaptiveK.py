@@ -1,15 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Oct 31 15:25:50 2017
-@author: mousse
-"""
 import numpy as np
 from scipy import optimize
 from scipy.spatial import Delaunay
-
 from dogs import Utils
-from dogs import interpolation
 
 '''
  adaptiveK.py file contains the adaptive-K continuous search function designed for AlphaDOGS and DeltaDOGS. Using the package optimize
@@ -39,12 +31,6 @@ from dogs import interpolation
 def tringulation_search_bound(inter_par, xi, y0, K0, ind_min):
     inf = 1e+20
     n = xi.shape[0]
-    xm, ym = interpolation.inter_min(xi[:, ind_min], inter_par)
-    sc_min = inf
-    # cse=1
-    if ym > y0:
-        ym = inf
-    # cse =2
     # construct Deluanay tringulation
     if n == 1:
         sx = sorted(range(xi.shape[1]), key=lambda x: xi[:, x])
@@ -69,7 +55,7 @@ def tringulation_search_bound(inter_par, xi, y0, K0, ind_min):
         if R2 < inf:
             # initialze with body center of each simplex
             x = np.dot(xi[:, tri[ii, :]], np.ones([n + 1, 1]) / (n + 1))
-            Sc[ii] = (interpolation.interpolate_val(x, inter_par) - y0) / (R2 - np.linalg.norm(x - xc) ** 2)
+            Sc[ii] = (inter_par.inter_val(x) - y0) / (R2 - np.linalg.norm(x - xc) ** 2)
             if np.sum(ind_min == tri[ii, :]):
                 Scl[ii] = np.copy(Sc[ii])
             else:
@@ -80,62 +66,41 @@ def tringulation_search_bound(inter_par, xi, y0, K0, ind_min):
 
     # Global one
     if np.min(Sc) < 0:
-        func = 'p'
         # The minimum of Sc is negative, minimize p(x) instead.
         Scp = np.zeros(tri.shape[0])
-        Scpl = np.zeros(tri.shape[0])
         for ii in range(tri.shape[0]):
             x = np.dot(xi[:, tri[ii, :]], np.ones([n + 1, 1]) / (n + 1))
-            Scp[ii] = interpolation.interpolate_val(x, inter_par)
-            if np.sum(ind_min == tri[ii, :]):
-                Scpl[ii] = np.copy(Scp[ii])
-            else:
-                Scpl[ii] = inf
-        else:
-            Scpl[ii] = inf
-            Scp[ii] = inf
+            Scp[ii] = inter_par.inter_val(x)
+
         # Globally minimize p(x)
         ind = np.argmin(Scp)
         x = np.dot(xi[:, tri[ind, :]], np.ones([n + 1, 1]) / (n + 1))
         simplex_bnds = Utils.search_bounds(xi[:, tri[ind, :]])
-        xm, ym = AdaptiveK_Search_p(x, inter_par, simplex_bnds)
-        # Locally minimize p(x)
-        ind = np.argmin(Scpl)
-        x = np.dot(xi[:, tri[ind, :]], np.ones([n + 1, 1]) / (n + 1))
-        simplex_bnds = Utils.search_bounds(xi[:, tri[ind, :]])
-        xml, yml = AdaptiveK_Search_p(x, inter_par, simplex_bnds)
-
+        xmin, ymin = AdaptiveK_Search_p(x, inter_par, simplex_bnds)
+        result = 'pmin'
     else:
-        func = 'sc'
         # Minimize sc(x).
-        # Global one, the minimum of Sc has the minimum value of all circumcenters.
-        ind = np.argmin(Sc)
-        R2, xc = Utils.circhyp(xi[:, tri[ind, :]], n)
-        x = np.dot(xi[:, tri[ind, :]], np.ones([n + 1, 1]) / (n + 1))
-        simplex_bnds = Utils.search_bounds(xi[:, tri[ind, :]])
-        xm, ym = Adaptive_K_Search(x, inter_par, xc, R2, y0, K0, simplex_bnds)
-        # Local one
-        ind = np.argmin(Scl)
-        R2, xc = Utils.circhyp(xi[:, tri[ind, :]], n)
-        x = np.dot(xi[:, tri[ind, :]], np.ones([n + 1, 1]) / (n + 1))
-        simplex_bnds = Utils.search_bounds(xi[:, tri[ind, :]])
-        xml, yml = Adaptive_K_Search(x, inter_par, xc, R2, y0, K0, simplex_bnds)
-    if yml < ym:
-        xm = np.copy(xml)
-        ym = np.copy(yml)
-        result = 'local'
-    else:
-        result = 'glob'
-    xm = xm.reshape(-1, 1)
-    ym = ym[0, 0]
+        # Global one and Local one
+        index = np.array([np.argmin(Sc), np.argmin(Scl)])
+        xm = np.zeros((n, 2))
+        ym = np.zeros(2)
+        for i in range(2):
+            temp_x, ym[i] = Adaptive_K_Search(xi[:, tri[index[i], :]], inter_par, y0, K0)
+            xm[:, i] = np.copy(temp_x)
+        ymin = np.min(ym)
+        xmin = xm[:, np.argmin(ym)].reshape(-1, 1)
 
-    return xm, ym, result, func
+        if np.argmin(ym) == 0:
+            result = 'global'
+        else:
+            result = 'local'
+    return xmin, ymin, result
 
 
 #################################   Minimize interpolation function  ##################################
-def AdaptiveK_Search_p(x0, inter_par_asm, bnds):
-    costfun = lambda x: interpolation.interpolate_val(x, inter_par_asm)
-    costjac = lambda x: interpolation.interpolate_grad(x, inter_par_asm)
+def AdaptiveK_Search_p(x0, inter_par, bnds):
+    costfun = lambda x: inter_par.inter_val(x)
+    costjac = lambda x: inter_par.inter_grad(x)
     opt = {'disp': False}
     res = optimize.minimize(costfun, x0.T[0], jac=costjac, method='TNC', bounds=bnds, options=opt)
     x = res.x
@@ -144,14 +109,15 @@ def AdaptiveK_Search_p(x0, inter_par_asm, bnds):
 
 
 #################################   Minimize continuous search function  ##################################
-def Adaptive_K_Search(x0, inter_par, xc, R2, y0, K0, bnds):
-    # Find the minimizer of the search fucntion in a simplex
-    n = x0.shape[0]
+def Adaptive_K_Search(simplex, inter_par, y0, K0):
+    n = simplex.shape[0]
+    R2, xc = Utils.circhyp(simplex, n)
+    x = np.dot(simplex, np.ones([n + 1, 1]) / (n + 1))
     costfun = lambda x: AdaptiveK_search_cost(x, inter_par, xc, R2, y0, K0)[0]
     costjac = lambda x: AdaptiveK_search_cost(x, inter_par, xc, R2, y0, K0)[1]
-    #    costhes = lambda x: AdaptiveK_search_cost(x, inter_par, xc, R2, y0, K0)[2]
     opt = {'gtol': 1e-8, 'disp': False}
-    res = optimize.minimize(costfun, x0, jac=costjac, method='TNC', bounds=bnds, options=opt)
+    bnds = tuple([(0, 1) for i in range(int(n))])
+    res = optimize.minimize(costfun, x, jac=costjac, method='TNC', bounds=bnds, options=opt)
     x = res.x
     y = res.fun
     if abs(y) > 1e-6:
@@ -199,7 +165,7 @@ def AdaptiveK_search_cost(x, inter_par, xc, R2, y0, K0):
     neg_inf = -1e+5 * np.ones(x.shape)
     x = x.reshape(-1, 1)
     n = x.shape[0]
-    p = interpolation.interpolate_val(x, inter_par)
+    p = inter_par.inter_val(x)
     e = R2 - np.linalg.norm(x - xc) ** 2
     # Optimize - K0 * e(x) / (p(x) - y0); Extreme point doesnt change.
     if abs(p - y0) < 1e-6:
@@ -209,7 +175,7 @@ def AdaptiveK_search_cost(x, inter_par, xc, R2, y0, K0):
     else:
         M = - e * K0 / (p - y0)
         # M = (p - y0) / e
-        gp = interpolation.interpolate_grad(x, inter_par)
+        gp = inter_par.inter_grad(x)
         ge = - 2 * (x - xc)
         #            gge = - 2 * w.T
         #            ggp = interpolation.interpolate_hessian(x, inter_par)

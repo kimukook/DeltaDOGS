@@ -8,14 +8,21 @@ def schwefel(x):
 
 
 if __name__ == '__main__':
-    bnds = np.hstack((np.zeros((2, 1)), np.ones((2, 1))))
+    bnds = np.hstack((np.zeros((1, 1)), np.ones((1, 1))))
     options = DeltaDOGSOptions()
-    options.set_option('Adaptive surrogate', True)
+    options.set_option('Constant surrogate', True)
     options.set_option('Scipy solver', True)
+
+    x = np.array([[.5, 1]])
+
+    options.set_option('Initial sites known', True)
+    options.set_option('Initial sites', x)
 
     options.set_option('Global minimizer known', True)
     options.set_option('Target value', -1.6759*2)
     options.set_option('Global minimizer', np.array([[0.8419], [0.8419]]))
+
+    options.set_option('Initial mesh size', 2)
     options.set_option('Number of mesh refinement', 4)
 
     options.set_option('Function evaluation cheap', True)

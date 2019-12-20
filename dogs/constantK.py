@@ -1,15 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Oct 31 15:25:12 2017
-
-@author: Muhan Zhao
-"""
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy import optimize
 from dogs import Utils
-from dogs import interpolation
 
 '''
  constantK.py file contains the constant-K continuous search function designed for AlphaDOGS and DeltaDOGS. Using the package optimize
