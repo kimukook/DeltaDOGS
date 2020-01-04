@@ -13,7 +13,7 @@ if __name__ == '__main__':
     options.set_option('Constant surrogate', True)
     options.set_option('Scipy solver', True)
 
-    x = np.array([[.5, 1]])
+    x = np.array([[.5, 1.]])
 
     options.set_option('Initial sites known', True)
     options.set_option('Initial sites', x)

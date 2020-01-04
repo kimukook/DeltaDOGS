@@ -156,7 +156,7 @@ class PlotClass:
 
         for i in range(len(tri)):
             # Plot the uncertainty function e(x)
-            plt.plot(xe_plot[i, :], e_plot[i, :] - np.abs(ddogs.plot_ylow), c='g', label=r'$e(x)$')
+            plt.plot(xe_plot[i, :], 3 * e_plot[i, :] - np.abs(ddogs.plot_ylow), c='g', label=r'$e(x)$')
             # Plot the continuous search function sc(x)
             plt.plot(xe_plot[i, :], sc_plot[i, :], 'r--', zorder=20, label=r'$S_c(x)$')
 
@@ -226,19 +226,20 @@ class PlotClass:
         if ddogs.xmin is not None:
             pos_reltv_error = str(np.round(np.linalg.norm(ddogs.xmin - ddogs.xE[:, np.argmin(ddogs.yE)])
                                            / np.linalg.norm(ddogs.xmin) * 100, decimals=4)) + '%'
-            val_reltv_error = str(np.round(np.abs(np.min(ddogs.yE) - ddogs.y0)
-                                           / np.abs(ddogs.y0) * 100, decimals=4)) + '%'
-        else:
-            pos_reltv_error = 0
-            val_reltv_error = 0
-
-        if ddogs.y0 is not None:
             cur_pos_reltv_err = str(np.round(np.linalg.norm(ddogs.xmin - ddogs.xE[:, -1])
                                              / np.linalg.norm(ddogs.xmin) * 100, decimals=4)) + '%'
+
+        else:
+            pos_reltv_error = 0
+            cur_pos_reltv_err = 0
+
+        if ddogs.y0 is not None:
+            val_reltv_error = str(np.round(np.abs(np.min(ddogs.yE) - ddogs.y0)
+                                           / np.abs(ddogs.y0) * 100, decimals=4)) + '%'
             cur_val_reltv_err = str(np.round(np.abs(ddogs.yE[-1] - ddogs.y0) / np.abs(ddogs.y0) * 100,
                                              decimals=4)) + '%'
         else:
-            cur_pos_reltv_err = 0
+            val_reltv_error = 0
             cur_val_reltv_err = 0
 
         if ddogs.iter_type == 'sdmin':
@@ -276,7 +277,7 @@ class PlotClass:
         :param ff:  The number of trial.
         """
         N = ddogs.yE.shape[0]  # number of iteration
-        if ddogs.y0 is not None:
+        if ddogs.y0 is not None and np.abs(ddogs.y0 - 0) > 1e-6:
             yE_best = np.zeros(N)
             yE_reltv_error = np.zeros(N)
             for i in range(N):
@@ -305,9 +306,9 @@ class PlotClass:
             self.fig_saver('Candidate_point', ddogs)
             plt.close(fig)
         else:
-            print('Target value y0 is not available, no candidate plot saved.')
+            print('Target value y0 is not available or it is 0, no candidate plot saved.')
         ####################   Plot the distance of candidate x to xmin of each iteration  ##################
-        if ddogs.xmin is not None:
+        if ddogs.xmin is not None and np.abs(ddogs.xmin - 0) > 1e-6:
             fig2 = plt.figure()
             plt.grid()
             xE_dis = np.zeros(N)
@@ -321,7 +322,7 @@ class PlotClass:
             self.fig_saver('Distance', ddogs)
             plt.close(fig2)
         else:
-            print('Global minimizer xmin is not available, no candidate plot saved.')
+            print('Global minimizer xmin is not available or it is 0, no candidate plot saved.')
 
     def result_saver(self, ddogs):
         ddogs_data = {}

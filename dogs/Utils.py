@@ -48,6 +48,25 @@ def bounds(bnd1, bnd2, n):
     return bnds
 
 
+def unique_support_points(xU, xE):
+    """
+    This function deletes the the elements from xU that is repeated in xE.
+    :param xU:  Support points.
+    :param xE:  Evaluated points.
+    :return:
+    """
+    i = 0
+    size = xU.shape[1]
+    while i < size:
+        if mindis(xU[:, i], xE)[0] < 1e-10:
+            xU = np.delete(xU, i, 1)
+            i = max(i-1, 0)
+            size -= 1
+        else:
+            i += 1
+    return xU
+
+
 def mindis(x, xi):
     '''
     calculates the minimum distance from all the existing points
@@ -94,6 +113,13 @@ def circhyp(x, N):
 
 
 def normalize_bounds(x0, lb, ub):
+    """
+    Compute the normalized data points, between [0, 1]
+    :param x0:  Data points in real-world
+    :param lb:  Physical lower bound
+    :param ub:  Physical upper bound
+    :return:
+    """
     n = len(lb)  # n represents dimensions
     m = x0.shape[1]  # m represents the number of sample data
     x = np.copy(x0)
@@ -104,12 +130,12 @@ def normalize_bounds(x0, lb, ub):
 
 
 def physical_bounds(x0, lb, ub):
-    '''
+    """
     :param x0: normalized point
     :param lb: real lower bound
     :param ub: real upper bound
     :return: physical scale of the point
-    '''
+    """
     n = len(lb)  # n represents dimensions
     try:
         m = x0.shape[1]  # m represents the number of sample data

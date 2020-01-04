@@ -169,16 +169,13 @@ class DeltaDOGS:
         else:
             pass
 
-        # Define the initial support points
-        self.xU = Utils.bounds(self.lb, self.ub, self.n)
-        self.yu = None
-
         # Initialize the function evaluation, capsulate those three functions with physical bounds
         self.func_eval = partial(Utils.fun_eval, func_eval, self.physical_lb, self.physical_ub)
 
         # Define the global optimum and its values
         if options.get_option('Global minimizer known'):
-            self.xmin = options.get_option('Global minimizer')
+            self.xmin = Utils.normalize_bounds(options.get_option('Global minimizer'), self.physical_lb,
+                                               self.physical_ub)
             self.y0 = options.get_option('Target value')
         else:
             self.xmin = None
@@ -191,7 +188,7 @@ class DeltaDOGS:
         if options.get_option('Initial sites known'):
             physical_initial_sites = options.get_option('Initial sites')
             # Normalize the bound
-            self.xE = Utils.normalize_bounds(physical_initial_sites, self.lb, self.ub)
+            self.xE = Utils.normalize_bounds(physical_initial_sites, self.physical_lb, self.physical_ub)
         else:
             self.xE = Utils.random_initial(self.n, 2 * self.n, self.ms, self.Ain, self.Bin)
 
@@ -203,6 +200,11 @@ class DeltaDOGS:
 
             for i in range(2 * self.n):
                 self.yE[i] = self.func_eval(self.xE[:, i])
+
+        # Define the initial support points
+        self.xU = Utils.bounds(self.lb, self.ub, self.n)
+        self.xU = Utils.unique_support_points(self.xU, self.xE)
+        self.yu = None
 
         self.K0 = np.ptp(self.yE, axis=0)
         # Define the interpolation
@@ -296,11 +298,7 @@ class DeltaDOGS:
         self.plot_folder = os.path.join(self.current_path, 'plot')
         if os.path.exists(self.plot_folder):
             shutil.rmtree(self.plot_folder)
-            os.makedirs(self.plot_folder)
-        elif not os.path.exists(self.plot_folder) and self.save_fig:
-            os.makedirs(self.plot_folder)
-        else:
-            pass
+        os.makedirs(self.plot_folder)
 
     def deltadogs_optimizer(self):
         """
@@ -320,7 +318,7 @@ class DeltaDOGS:
                 else:
                     pass
         xmin = self.xE[:, np.argmin(self.yE)]
-        if self.optm_summary:
+        if self.optm_summary and self.save_fig:
             self.plot.summary_plot(self)
         self.plot.result_saver(self)
         return xmin
